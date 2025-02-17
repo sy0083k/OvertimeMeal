@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>시간외근무자 급식비 계산 간소화 서비스</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .button-group {
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .time-input {
+            width: 100px;
+            padding: 5px;
+        }
+        .notice {
+            margin: 10px 0;
+            color: #666;
+            font-size: 0.9em;
+        }
+        button {
+            padding: 5px 10px;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>시간외근무자 급식비 계산 간소화 서비스</h1>
+    
+    <div class="button-group">
+        <button onclick="location.reload()">초기 화면</button>
+        <button onclick="calculateMeal()">처리결과 다운로드</button>
+    </div>
+
+    <h2>제공: 반지원정대</h2>
+    <p>(선택사항)휴일근무 시 급식비 미지급 조건</p>
+
+    <div class="form-group">
+        <label>최소수당시간: </label>
+        <input type="text" class="time-input" id="minHours" /> 분
+    </div>
+
+    <div class="form-group">
+        <label>출근시간1: </label>
+        <input type="text" class="time-input" id="startTime1" />
+        <label>퇴근시간1: </label>
+        <input type="text" class="time-input" id="endTime1" />
+    </div>
+
+    <div class="form-group">
+        <label>출근시간2: </label>
+        <input type="text" class="time-input" id="startTime2" />
+        <label>퇴근시간2: </label>
+        <input type="text" class="time-input" id="endTime2" />
+    </div>
+
+    <div class="form-group">
+        <label>출근시간3: </label>
+        <input type="text" class="time-input" id="startTime3" />
+    </div>
+
+    <div class="notice">
+        <p>※ 출/퇴근시간 조건은 00:00(24시간제) 형식으로 입력</p>
+        <p>※ 위 미지급은 예시일 뿐입니다.</p>
+        <p>※ 조건미준수에 대한 책임 제외</p>
+        <p>- 휴일 수당시간이 1시간 미만일 경우 급식비 미지급</p>
+        <p>- 휴일 09시 후 출근해 12시 전 퇴근할 경우 급식비 미지급</p>
+        <p>- 휴일 13시 후 출근해 18시 전 퇴근할 경우 급식비 미지급</p>
+        <p>- 휴일 19시 후 출근한 경우 급식비 미지급</p>
+    </div>
+
+    <script>
+        function calculateMeal() {
+            // Gather input values
+            const data = {
+                minHours: document.getElementById('minHours').value,
+                startTime1: document.getElementById('startTime1').value,
+                endTime1: document.getElementById('endTime1').value,
+                startTime2: document.getElementById('startTime2').value,
+                endTime2: document.getElementById('endTime2').value,
+                startTime3: document.getElementById('startTime3').value
+            };
+
+            // Validate inputs
+            for (let key in data) {
+                if (!data[key]) {
+                    alert('모든 시간을 입력해주세요.');
+                    return;
+                }
+            }
+
+            // Send calculation request to server
+            fetch('/calculate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.error) {
+                    alert('오류가 발생했습니다: ' + result.error);
+                    return;
+                }
+
+                if (result.meal_allowance) {
+                    alert(`급식비가 지급됩니다. (금액: ${result.amount}원)`);
+                } else {
+                    alert(`급식비가 지급되지 않습니다.\n사유: ${result.reason}`);
+                }
+            })
+            .catch(error => {
+                alert('계산 중 오류가 발생했습니다: ' + error);
+            });
+        }
+
+        // Add input validation for time format
+        function validateTimeInput(input) {
+            input.addEventListener('input', function() {
+                let value = this.value;
+                if (value.length === 2) {
+                    this.value = value + ':';
+                }
+                // Validate HH:MM format
+                if (value.length === 5) {
+                    let [hours, minutes] = value.split(':');
+                    if (parseInt(hours) > 23 || parseInt(minutes) > 59) {
+                        alert('올바른 시간 형식을 입력해주세요 (00:00-23:59)');
+                        this.value = '';
+                    }
+                }
+            });
+        }
+
+        // Apply validation to all time inputs
+        document.querySelectorAll('.time-input').forEach(input => {
+            validateTimeInput(input);
+        });
+    </script>
+</body>
+</html> 

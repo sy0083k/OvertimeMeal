@@ -1,6 +1,8 @@
 __pycache__/
-*.py[cod]
-*$py.class
+*.pyc
 .env
+.venv
 venv/
-.venv/ 
+ENV/
+.vercel 
+OvertimeMeal.py
