@@ -1,12 +1,21 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_file
 from datetime import datetime, time
 import os
+import pandas as pd
+from io import BytesIO
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 
 # Add template folder configuration
 template_dir = os.path.abspath(os.path.dirname(__file__))
 app.template_folder = os.path.join(template_dir, 'templates')
+
+# Add file upload configuration
+ALLOWED_EXTENSIONS = {'xls', 'xlsx'}
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 @app.route('/')
 def home():
@@ -66,4 +75,37 @@ def calculate():
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
-# Remove the if __name__ == '__main__' block for Vercel deployment 
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': '파일이 전송되지 않았습니다.'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': '파일이 선택되지 않았습니다.'}), 400
+        
+        if file and allowed_file(file.filename):
+            # Read Excel file directly from the uploaded file
+            df = pd.read_excel(file, index_col=0, usecols=[1,2,3,4,5,6,10,11,12,17,18,21,28])
+            df = df.query("자료구분 == '정산' and 결재상태 == '처리'")
+            
+            # Create Excel file in memory
+            output = BytesIO()
+            df.to_excel(output)
+            output.seek(0)
+            
+            return send_file(
+                output,
+                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                as_attachment=True,
+                download_name='result.xlsx'
+            )
+        
+        return jsonify({'error': '허용되지 않는 파일 형식입니다.'}), 400
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+if __name__ == '__main__':
+    app.run(debug=True) 

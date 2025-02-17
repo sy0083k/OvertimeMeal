@@ -43,6 +43,12 @@
     <div class="button-group">
         <button onclick="location.reload()">초기 화면</button>
         <button onclick="calculateMeal()">처리결과 다운로드</button>
+        <input type="file" id="excelFile" accept=".xls,.xlsx" style="display: none;" onchange="handleFileSelect(event)" />
+        <button onclick="document.getElementById('excelFile').click()">엑셀 파일 선택</button>
+    </div>
+
+    <div id="fileInfo" style="margin: 10px 0; color: #666;">
+        선택된 파일: 없음
     </div>
 
     <h2>제공: 반지원정대</h2>
@@ -150,6 +156,44 @@
         document.querySelectorAll('.time-input').forEach(input => {
             validateTimeInput(input);
         });
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                document.getElementById('fileInfo').textContent = `선택된 파일: ${file.name}`;
+                
+                const formData = new FormData();
+                formData.append('file', file);
+
+                fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (response.ok) {
+                        return response.blob();
+                    }
+                    return response.json().then(err => {
+                        throw new Error(err.error || '파일 처리 중 오류가 발생했습니다.');
+                    });
+                })
+                .then(blob => {
+                    // Create download link
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'result.xlsx';
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    alert('파일이 성공적으로 처리되었습니다.');
+                })
+                .catch(error => {
+                    alert('오류가 발생했습니다: ' + error.message);
+                });
+            }
+        }
     </script>
 </body>
 </html> 
