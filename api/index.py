@@ -1,9 +1,12 @@
 from flask import Flask, render_template, request, jsonify
 from datetime import datetime, time
-import pandas as pd
-import io
+import os
 
 app = Flask(__name__)
+
+# Add template folder configuration
+template_dir = os.path.abspath(os.path.dirname(__file__))
+app.template_folder = os.path.join(template_dir, 'templates')
 
 @app.route('/')
 def home():
@@ -63,5 +66,4 @@ def calculate():
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
-if __name__ == '__main__':
-    app.run(debug=True) 
+# Remove the if __name__ == '__main__' block for Vercel deployment 
