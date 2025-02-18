@@ -23,7 +23,7 @@
             margin-bottom: 15px;
         }
         .time-input {
-            width: 100px;
+            width: 50px;
             padding: 5px;
         }
         .notice {
@@ -41,10 +41,10 @@
     <h1>시간외근무자 급식비 계산 간소화 서비스</h1>
     
     <div class="button-group">
-        <button onclick="location.reload()">초기 화면</button>
-        <button onclick="calculateMeal()">처리결과 다운로드</button>
         <input type="file" id="excelFile" accept=".xls,.xlsx" style="display: none;" onchange="handleFileSelect(event)" />
-        <button onclick="document.getElementById('excelFile').click()">엑셀 파일 선택</button>
+        <button onclick="document.getElementById('excelFile').click()">파일 선택</button>
+        <button onclick="calculateMeal()">처리결과 다운로드</button>
+        <button onclick="resetForm()">초기화</button>
     </div>
 
     <div id="fileInfo" style="margin: 10px 0; color: #666;">
@@ -193,6 +193,22 @@
                     alert('오류가 발생했습니다: ' + error.message);
                 });
             }
+        }
+
+        // Add reset function
+        function resetForm() {
+            // Reset input fields to default values
+            document.getElementById('minHours').value = '60';
+            document.getElementById('startTime1').value = '08:00';
+            document.getElementById('endTime1').value = '17:00';
+            document.getElementById('startTime2').value = '13:00';
+            document.getElementById('endTime2').value = '17:00';
+            document.getElementById('startTime3').value = '18:00';
+            
+            // Reset file selection info
+            document.getElementById('fileInfo').textContent = '선택된 파일: 없음';
+            // Clear file input
+            document.getElementById('excelFile').value = '';
         }
     </script>
 </body>
