@@ -35,6 +35,15 @@
             padding: 5px 10px;
             margin-right: 10px;
         }
+        .btn {
+            padding: 5px 10px;
+            margin-right: 10px;
+            font-size: inherit;
+            font-family: inherit;
+        }
+        .form-control {
+            display: none;  /* Hide the default file input */
+        }
     </style>
 </head>
 <body>
@@ -88,49 +97,58 @@
         <p>- 휴일 19시 후 출근한 경우 급식비 미지급</p>
     </div>
 
-    <script>
-        function calculateMeal() {
-            // Gather input values
-            const data = {
-                minHours: document.getElementById('minHours').value,
-                startTime1: document.getElementById('startTime1').value,
-                endTime1: document.getElementById('endTime1').value,
-                startTime2: document.getElementById('startTime2').value,
-                endTime2: document.getElementById('endTime2').value,
-                startTime3: document.getElementById('startTime3').value
-            };
+    <div class="container">
+        <form id="uploadForm" enctype="multipart/form-data">
+            <div class="mb-3">
+                <input type="file" class="form-control" id="fileInput" name="file" accept=".xls,.xlsx">
+            </div>
+        </form>
+    </div>
 
-            // Validate inputs
-            for (let key in data) {
-                if (!data[key]) {
-                    alert('모든 시간을 입력해주세요.');
-                    return;
-                }
+    <script>
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                document.getElementById('fileInfo').textContent = `선택된 파일: ${file.name}`;
+            }
+        }
+
+        function calculateMeal() {
+            const file = document.getElementById('excelFile').files[0];
+            if (!file) {
+                alert('파일을 먼저 선택해주세요.');
+                return;
             }
 
-            // Send calculation request to server
-            fetch('/calculate', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(data)
-            })
-            .then(response => response.json())
-            .then(result => {
-                if (result.error) {
-                    alert('오류가 발생했습니다: ' + result.error);
-                    return;
-                }
+            const formData = new FormData();
+            formData.append('file', file);
 
-                if (result.meal_allowance) {
-                    alert(`급식비가 지급됩니다. (금액: ${result.amount}원)`);
-                } else {
-                    alert(`급식비가 지급되지 않습니다.\n사유: ${result.reason}`);
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.blob();
                 }
+                return response.json().then(err => {
+                    throw new Error(err.error || '파일 처리 중 오류가 발생했습니다.');
+                });
+            })
+            .then(blob => {
+                // Create download link
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'result.xlsx';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                alert('파일이 성공적으로 처리되었습니다.');
             })
             .catch(error => {
-                alert('계산 중 오류가 발생했습니다: ' + error);
+                alert('오류가 발생했습니다: ' + error.message);
             });
         }
 
@@ -157,44 +175,6 @@
             validateTimeInput(input);
         });
 
-        function handleFileSelect(event) {
-            const file = event.target.files[0];
-            if (file) {
-                document.getElementById('fileInfo').textContent = `선택된 파일: ${file.name}`;
-                
-                const formData = new FormData();
-                formData.append('file', file);
-
-                fetch('/upload', {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => {
-                    if (response.ok) {
-                        return response.blob();
-                    }
-                    return response.json().then(err => {
-                        throw new Error(err.error || '파일 처리 중 오류가 발생했습니다.');
-                    });
-                })
-                .then(blob => {
-                    // Create download link
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'result.xlsx';
-                    document.body.appendChild(a);
-                    a.click();
-                    window.URL.revokeObjectURL(url);
-                    document.body.removeChild(a);
-                    alert('파일이 성공적으로 처리되었습니다.');
-                })
-                .catch(error => {
-                    alert('오류가 발생했습니다: ' + error.message);
-                });
-            }
-        }
-
         // Add reset function
         function resetForm() {
             // Reset input fields to default values
@@ -210,6 +190,38 @@
             // Clear file input
             document.getElementById('excelFile').value = '';
         }
+
+        document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            const fileInput = document.getElementById('fileInput');
+            formData.append('file', fileInput.files[0]);
+            
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'result.xlsx';
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    a.remove();
+                } else {
+                    const error = await response.json();
+                    alert(error.error);
+                }
+            } catch (error) {
+                alert('파일 처리 중 오류가 발생했습니다.');
+            }
+        });
     </script>
 </body>
 </html> 
