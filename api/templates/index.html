@@ -63,6 +63,13 @@
     </div>
     
     <fieldset>
+		<legend>기본설정</legend>
+		<div class="form-group">
+			<label for="unitPrice">매식비 단가:</label>
+			<input type="number" class="number-input" id="unitPrice" value="9000" step="1000"> 원
+		</div>
+	</fieldset>			
+    <fieldset>		
         <legend>(선택사항) 휴일근무 시 급식비 미지급 조건</legend>
 		<div class="form-group">
 		<label for="minHours">최소수당시간:</label>
@@ -139,6 +146,7 @@
 			formData.append('startTime2', document.getElementById('startTime2').value);
 			formData.append('endTime2', document.getElementById('endTime2').value);
 			formData.append('startTime3', document.getElementById('startTime3').value);
+			formData.append('unitPrice', document.getElementById('unitPrice').value);
 
 			try {
 				const btn = document.querySelector('.primary');
@@ -152,7 +160,6 @@
 					const url = window.URL.createObjectURL(blob);
 					const a = document.createElement('a');
 					a.href = url;
-					a.download = `급식비계산_${new Date().toISOString().slice(0,10)}.xlsx`;
 					a.click();
 					alert('다운로드가 시작되었습니다.');
 				} else {
