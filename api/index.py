@@ -21,89 +21,64 @@ def allowed_file(filename):
 def home():
     return render_template('index.html')
 
-@app.route('/calculate', methods=['POST'])
-def calculate():
-    try:
-        data = request.json
-        min_hours = int(data.get('minHours', 0))
-        
-        # Process time inputs
-        times = {
-            'start1': datetime.strptime(data['startTime1'], '%H:%M').time(),
-            'end1': datetime.strptime(data['endTime1'], '%H:%M').time(),
-            'start2': datetime.strptime(data['startTime2'], '%H:%M').time(),
-            'end2': datetime.strptime(data['endTime2'], '%H:%M').time(),
-            'start3': datetime.strptime(data['startTime3'], '%H:%M').time()
-        }
-
-        # Calculate meal allowance based on rules
-        result = {
-            'meal_allowance': False,
-            'reason': ''
-        }
-
-        # Rule 1: Minimum hours check
-        if min_hours < 60:
-            result['reason'] = '최소수당시간이 1시간 미만입니다.'
-            return jsonify(result)
-
-        # Rule 2: 09:00-12:00 check
-        if (times['start1'] > time(9, 0) and times['end1'] < time(12, 0)) or \
-           (times['start2'] > time(9, 0) and times['end2'] < time(12, 0)):
-            result['reason'] = '09시 후 출근해 12시 전 퇴근'
-            return jsonify(result)
-
-        # Rule 3: 13:00-18:00 check
-        if (times['start1'] > time(13, 0) and times['end1'] < time(18, 0)) or \
-           (times['start2'] > time(13, 0) and times['end2'] < time(18, 0)):
-            result['reason'] = '13시 후 출근해 18시 전 퇴근'
-            return jsonify(result)
-
-        # Rule 4: After 19:00 check
-        if times['start1'] > time(19, 0) or \
-           times['start2'] > time(19, 0) or \
-           times['start3'] > time(19, 0):
-            result['reason'] = '19시 후 출근'
-            return jsonify(result)
-
-        # If all rules pass, grant meal allowance
-        result['meal_allowance'] = True
-        result['amount'] = 8000  # 8000 won per meal
-
-        return jsonify(result)
-
-    except Exception as e:
-        return jsonify({'error': str(e)}), 400
-
 @app.route('/upload', methods=['POST'])
 def upload_file():
     try:
-        if 'file' not in request.files:
-            return jsonify({'error': '파일이 전송되지 않았습니다.'}), 400
+        # 1. FormData에서 직접 텍스트 값 추출
+        min_hours = int(request.form.get('minHours', 60))
+        s1 = request.form.get('startTime1')
+        e1 = request.form.get('endTime1')
+        s2 = request.form.get('startTime2')
+        e2 = request.form.get('endTime2')
+        s3 = request.form.get('startTime3')         
         
         file = request.files['file']
-        if file.filename == '':
-            return jsonify({'error': '파일이 선택되지 않았습니다.'}), 400
-        
         if file and allowed_file(file.filename):
-            # Read Excel file directly from the uploaded file
+            # 엑셀 로드 및 컬럼 정리
             df = pd.read_excel(file, index_col=0, usecols=[1,2,3,4,5,6,10,11,12,17,18,21,28])
             df = df.query("자료구분 == '정산' and 결재상태 == '처리'")
+            df.columns = df.columns.str.strip().str.replace(' ', '_', regex=False).str.replace('(', '_').str.replace(')', '')
+                     
+            # 기본 날짜 처리
+            df['근무일자'] = pd.to_datetime(df['근무일자'])
+            df['근무일자2'] = df['근무일자'].dt.day
+            df['근무일자'] = df['근무일자'].dt.date
+
+            # 3. 텍스트 상태로 급식비 판정 로직 적용
+            df['meal'] = 0
+            # 평일 기준
+            df.loc[(df.휴일구분 == '평일') & (df.수당시간_분 >= 60), 'meal'] = 1
             
-            # Create Excel file in memory
+            # 휴일 기준 (텍스트 비교)
+            is_holiday = (df.휴일구분 == '휴일')
+            df.loc[is_holiday & (df.수당시간_분 > min_hours), 'meal'] = 1
+            
+            # 미지급 조건 (텍스트 간 크기 비교)
+            if s1 and e1:
+                df.loc[is_holiday & (df.출근_실제 >= s1) & (df.퇴근_실제 <= e1), 'meal'] = 0
+            if s2 and e2:
+                df.loc[is_holiday & (df.출근_실제 >= s2) & (df.퇴근_실제 <= e2), 'meal'] = 0
+            if s3:
+                df.loc[is_holiday & (df.출근_실제 >= s3), 'meal'] = 0
+
+            df['pay'] = df['meal'] * 8000
+            
+            # 개인별 집계 데이터 생성
+            summary_df = df.groupby('성명')[['meal', 'pay']].sum().reset_index()
+
+            # 4. 결과 저장 (openpyxl 사용)
             output = BytesIO()
-            df.to_excel(output)
-            output.seek(0)
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                df.to_excel(writer, sheet_name='report')
+                # 시트 2: 개인별 총계
+                summary_df.to_excel(writer, sheet_name='summary', index=False)                
+                # 시트 3: 날짜별 피벗 (누가 몇 일에 먹었나)
+                pivot_df = df[df['meal'] == 1].pivot(index='성명', columns='근무일자2', values='근무일자2')
+                pivot_df.to_excel(writer, sheet_name='pivot_report')
             
-            return send_file(
-                output,
-                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                as_attachment=True,
-                download_name='result.xlsx'
-            )
-        
-        return jsonify({'error': '허용되지 않는 파일 형식입니다.'}), 400
-    
+            output.seek(0)
+            return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                             as_attachment=True, download_name='급식비_계산결과.xlsx')
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
